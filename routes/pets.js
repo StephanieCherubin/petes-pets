@@ -16,10 +16,11 @@ module.exports = (app) => {
 
     pet.save()
       .then((pet) => {
-        res.redirect(`/pets/${pet._id}`);
+        res.send({ pet: pet });
       })
       .catch((err) => {
-        // Handle Errors
+        // Status of 400 for Validations
+        res.status(400).send(err.errors);
       });
   });
 
