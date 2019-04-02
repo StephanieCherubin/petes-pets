@@ -3,7 +3,6 @@ const Pet = require('../models/pet');
 
 // PET ROUTES
 module.exports = (app) => {
-
   // INDEX PET => index.js
 
   // NEW PET
@@ -21,7 +20,7 @@ module.exports = (app) => {
       })
       .catch((err) => {
         // Handle Errors
-      }) ;
+      });
   });
 
   // SHOW PET
@@ -42,7 +41,7 @@ module.exports = (app) => {
   app.put('/pets/:id', (req, res) => {
     Pet.findByIdAndUpdate(req.params.id, req.body)
       .then((pet) => {
-        res.redirect(`/pets/${pet._id}`)
+        res.redirect(`/pets/${pet._id}`);
       })
       .catch((err) => {
         // Handle Errors
@@ -52,21 +51,27 @@ module.exports = (app) => {
   // DELETE PET
   app.delete('/pets/:id', (req, res) => {
     Pet.findByIdAndRemove(req.params.id).exec((err, pet) => {
-      return res.redirect('/')
+      return res.redirect('/');
     });
   });
 
   // SEARCH PET
   app.get('/search', (req, res) => {
-    term = new RegExp(req.query.term, 'i')
+    const term = new RegExp(req.query.term, 'i');
 
-    Pet.find({$or:[
-      {'name': term},
-      {'species': term}
-    ]}).exec((err, pets) => {
-      res.render('pets-index', { pets: pets });
-    })
+    const page = req.query.page || 1;
+    Pet.paginate(
+      {
+        $or: [
+          { 'name': term },
+          { 'species': term },
+        ],
+      },
+      { page: page },
+    ).then((results) => {
+      res.render('pets-index', {
+        pets: results.docs, pagesCount: results.pages, currentPage: page, term: req.query.term,
+      });
+    });
   });
-}
-
-
+};
