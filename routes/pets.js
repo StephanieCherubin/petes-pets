@@ -1,5 +1,35 @@
 // MODELS
 const Pet = require('../models/pet');
+// UPLOADING TO AWS S3
+const multer = require('multer');
+
+const upload = multer({
+  dest: 'uploads/'
+});
+const Upload = require('s3-uploader');
+
+const client = new Upload(process.env.S3_BUCKET, {
+  aws: {
+    path: 'pets/avatar',
+    region: process.env.S3_REGION,
+    acl: 'public-read',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+  cleanup: {
+    versions: true,
+    original: true,
+  },
+  versions: [{
+    maxWidth: 400,
+    aspect: '16:10',
+    suffix: '-standard',
+  }, {
+    maxWidth: 300,
+    aspect: '1:1',
+    suffix: '-square',
+  }],
+});
 
 // PET ROUTES
 module.exports = (app) => {
@@ -9,32 +39,56 @@ module.exports = (app) => {
   app.get('/pets/new', (req, res) => {
     res.render('pets-new');
   });
-
   // CREATE PET
-  app.post('/pets', (req, res) => {
-    var pet = new Pet(req.body);
+  app.post('/pets', upload.single('avatar'), (req, res, next) => {
+    const pet = new Pet(req.body);
+    console.log('new pet: ', pet)
+    pet.save().then(() => {
+      if (req.file) {
+        client.upload(req.file.path, {}, (err, versions, meta) => {
+          if (err) {
+            return res.status(400).send({
+              err
+            });
+          }
 
-    pet.save()
-      .then((pet) => {
-        res.send({ pet: pet });
-      })
-      .catch((err) => {
-        // Status of 400 for Validations
-        res.status(400).send(err.errors);
-      });
+          versions.forEach((image) => {
+            const urlArray = image.url.split('-');
+            urlArray.pop();
+            const url = urlArray.join('-');
+            pet.avatarUrl = url;
+            pet.save();
+          });
+
+          res.send({
+            pet
+          });
+        });
+      } else {
+        res.send({
+          pet
+        });
+      }
+    }).catch((error) => {
+      console.log('wtf ', error.message)
+    });
   });
 
   // SHOW PET
   app.get('/pets/:id', (req, res) => {
     Pet.findById(req.params.id).exec((err, pet) => {
-      res.render('pets-show', { pet: pet });
+      res.render('pets-show', {
+        pet: pet
+      });
     });
   });
 
   // EDIT PET
   app.get('/pets/:id/edit', (req, res) => {
     Pet.findById(req.params.id).exec((err, pet) => {
-      res.render('pets-edit', { pet: pet });
+      res.render('pets-edit', {
+        pet: pet
+      });
     });
   });
 
@@ -61,17 +115,22 @@ module.exports = (app) => {
     const term = new RegExp(req.query.term, 'i');
 
     const page = req.query.page || 1;
-    Pet.paginate(
-      {
-        $or: [
-          { 'name': term },
-          { 'species': term },
-        ],
-      },
-      { page: page },
-    ).then((results) => {
+    Pet.paginate({
+      $or: [{
+          'name': term
+        },
+        {
+          'species': term
+        },
+      ],
+    }, {
+      page: page
+    }, ).then((results) => {
       res.render('pets-index', {
-        pets: results.docs, pagesCount: results.pages, currentPage: page, term: req.query.term,
+        pets: results.docs,
+        pagesCount: results.pages,
+        currentPage: page,
+        term: req.query.term,
       });
     });
   });
