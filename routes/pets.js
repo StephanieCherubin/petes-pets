@@ -42,16 +42,16 @@ module.exports = (app) => {
 
   // CREATE PET
   app.post('/pets', upload.single('avatar'), (req, res, next) => {
-    var pet = new Pet(req.body);
+    let pet = new Pet(req.body);
     pet.save((err) => {
       if (req.file) {
         client.upload(req.file.path, {}, (err, versions, meta) => {
           if (err) { return res.status(400).send({ err }); }
 
           versions.forEach((image) => {
-            var urlArray = image.url.split('-');
+            let urlArray = image.url.split('-');
             urlArray.pop();
-            var url = urlArray.join('-');
+            let url = urlArray.join('-');
             pet.avatarUrl = url;
             pet.save();
           });
@@ -95,9 +95,7 @@ module.exports = (app) => {
 
   // DELETE PET
   app.delete('/pets/:id', (req, res) => {
-    Pet.findByIdAndRemove(req.params.id).exec((err, pet) => {
-      return res.redirect('/');
-    });
+    Pet.findByIdAndRemove(req.params.id).exec((err, pet) => res.redirect('/'));
   });
 
   // SEARCH PET
@@ -105,17 +103,15 @@ module.exports = (app) => {
     const term = new RegExp(req.query.term, 'i');
 
     const page = req.query.page || 1;
-    Pet.paginate({
-      $or: [{
-        name: term,
-      },
+    Pet.paginate(
       {
-        species: term,
+        $or: [
+          { name: term },
+          { species: term },
+        ],
       },
-      ],
-    }, {
-      page,
-    }).then((results) => {
+      { page },
+    ).then((results) => {
       res.render('pets-index', {
         pets: results.docs,
         pagesCount: results.pages,
@@ -125,23 +121,37 @@ module.exports = (app) => {
     });
   });
 
-  // PURCHASE PET
-  app.post('/pets/:id/purchase', (req,res) => {
+  // PURCHASE
+  app.post('/pets/:id/purchase', (req, res) => {
     console.log(req.body);
     // Set your secret key: remember to change this to your live secret key in production
     // See your keys here: https://dashboard.stripe.com/account/apikeys
-    var stripe = require("stripe")(process.env.PRIVATE_STRIPE_API_KEY);
+    let stripe = require('stripe')(process.env.PRIVATE_STRIPE_API_KEY);
+
     // Token is created using Checkout or Elements!
     // Get the payment token ID submitted by the form:
     const token = req.body.stripeToken; // Using Express
 
-    const charge = stripe.charges.create({
-      amount: 999,
-      currency: 'usd',
-      description: 'Example charge',
-      source: token,
-    }).then(() => {
-      res.redirect(`/pets/${req.params.id}`);
+    // req.body.petId can become null through seeding,
+    // this way we'll insure we use a non-null value
+    const petId = req.body.petId || req.params.id;
+
+    Pet.findById(petId).exec((err, pet) => {
+      if (err) {
+        console.log(`Error: ${err}`);
+        res.redirect(`/pets/${req.params.id}`);
+      }
+      console.log(`This doesn't work:  ${pet.price}`);
+      const charge = stripe.charges.create({
+        amount: pet.price * 100,
+        currency: 'usd',
+        description: `Purchased ${pet.name}, ${pet.species}`,
+        source: token,
+      }).then((chg) => {
+        res.redirect(`/pets/${req.params.id}`);
+      }).catch((err) => {
+        console.log(`Error: ${err}`);
+      });
     });
   });
 };
