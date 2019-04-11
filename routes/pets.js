@@ -46,7 +46,11 @@ module.exports = (app) => {
     pet.save((err) => {
       if (req.file) {
         client.upload(req.file.path, {}, (err, versions, meta) => {
-          if (err) { return res.status(400).send({ err }); }
+          if (err) {
+            return res.status(400).send({
+              err
+            });
+          }
 
           versions.forEach((image) => {
             let urlArray = image.url.split('-');
@@ -56,10 +60,14 @@ module.exports = (app) => {
             pet.save();
           });
 
-          res.send({ pet });
+          res.send({
+            pet
+          });
         });
       } else {
-        res.send({ pet });
+        res.send({
+          pet
+        });
       }
     });
   });
@@ -103,15 +111,17 @@ module.exports = (app) => {
     const term = new RegExp(req.query.term, 'i');
 
     const page = req.query.page || 1;
-    Pet.paginate(
-      {
-        $or: [
-          { name: term },
-          { species: term },
-        ],
-      },
-      { page },
-    ).then((results) => {
+    Pet.paginate({
+      $or: [{
+          name: term
+        },
+        {
+          species: term
+        },
+      ],
+    }, {
+      page
+    }, ).then((results) => {
       res.render('pets-index', {
         pets: results.docs,
         pagesCount: results.pages,
@@ -123,7 +133,7 @@ module.exports = (app) => {
 
   // PURCHASE
   app.post('/pets/:id/purchase', (req, res) => {
-    console.log(req.body);
+    console.log(`Purchase body: ${req.body}`);
     // Set your secret key: remember to change this to your live secret key in production
     // See your keys here: https://dashboard.stripe.com/account/apikeys
     let stripe = require('stripe')(process.env.PRIVATE_STRIPE_API_KEY);
@@ -141,7 +151,6 @@ module.exports = (app) => {
         console.log(`Error: ${err}`);
         res.redirect(`/pets/${req.params.id}`);
       }
-      console.log(`This doesn't work:  ${pet.price}`);
       const charge = stripe.charges.create({
         amount: pet.price * 100,
         currency: 'usd',
