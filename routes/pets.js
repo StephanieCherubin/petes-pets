@@ -4,32 +4,10 @@ const multer = require('multer');
 const upload = multer({
   dest: 'uploads/',
 });
-const Upload = require('s3-uploader');
 // MODELS
 const Pet = require('../models/pet');
 
-const client = new Upload(process.env.S3_BUCKET, {
-  aws: {
-    path: 'pets/avatar',
-    region: process.env.S3_REGION,
-    acl: 'public-read',
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-  cleanup: {
-    versions: true,
-    original: true,
-  },
-  versions: [{
-    maxWidth: 400,
-    aspect: '16:10',
-    suffix: '-standard',
-  }, {
-    maxWidth: 300,
-    aspect: '1:1',
-    suffix: '-square',
-  }],
-});
+// require('lib')
 
 // PET ROUTES
 module.exports = (app) => {
@@ -42,31 +20,29 @@ module.exports = (app) => {
 
   // CREATE PET
   app.post('/pets', upload.single('avatar'), (req, res, next) => {
-    let pet = new Pet(req.body);
+    const pet = new Pet(req.body);
     pet.save((err) => {
       if (req.file) {
         client.upload(req.file.path, {}, (err, versions, meta) => {
           if (err) {
             return res.status(400).send({
-              err
+              err,
             });
           }
 
-          versions.forEach((image) => {
-            let urlArray = image.url.split('-');
-            urlArray.pop();
-            let url = urlArray.join('-');
-            pet.avatarUrl = url;
-            pet.save();
-          });
+          const imgUrl = versions[0].url.split('-');
+          imgUrl.pop();
+          imgUrl.join('-');
+          pet.avatarUrl = imgUrl;
+          pet.save();
 
           res.send({
-            pet
+            pet,
           });
         });
       } else {
         res.send({
-          pet
+          pet,
         });
       }
     });
@@ -113,15 +89,15 @@ module.exports = (app) => {
     const page = req.query.page || 1;
     Pet.paginate({
       $or: [{
-          name: term
-        },
-        {
-          species: term
-        },
+        name: term,
+      },
+      {
+        species: term,
+      },
       ],
     }, {
-      page
-    }, ).then((results) => {
+      page,
+    }).then((results) => {
       res.render('pets-index', {
         pets: results.docs,
         pagesCount: results.pages,
@@ -136,7 +112,7 @@ module.exports = (app) => {
     console.log(`Purchase body: ${req.body}`);
     // Set your secret key: remember to change this to your live secret key in production
     // See your keys here: https://dashboard.stripe.com/account/apikeys
-    let stripe = require('stripe')(process.env.PRIVATE_STRIPE_API_KEY);
+    const stripe = require('stripe')(process.env.PRIVATE_STRIPE_API_KEY);
 
     // Token is created using Checkout or Elements!
     // Get the payment token ID submitted by the form:

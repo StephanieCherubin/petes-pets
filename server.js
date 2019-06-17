@@ -10,11 +10,11 @@ const logger = require('morgan');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const methodOverride = require('method-override');
+const mongoose = require('mongoose');
+const nodemailer = require('nodemailer'); // require our mailgun dependencies
+const mg = require('nodemailer-mailgun-transport');
 
 const app = express();
-
-const mongoose = require('mongoose');
-
 mongoose.connect('mongodb://localhost:27017/petes-pets', { useNewUrlParser: true });
 
 // view engine setup
@@ -31,6 +31,40 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.locals.PUBLIC_STRIPE_API_KEY = process.env.PUBLIC_STRIPE_API_KEY;
+
+const auth = {
+  auth: {
+    api_key: process.env.MAILGUN_API_KEY,
+    domain: process.env.EMAIL_DOMAIN,
+  },
+};
+
+// create a mailer
+const nodemailerMailgun = nodemailer.createTransport(mg(auth));
+
+// SEND EMAIL
+const user = {
+  email: 'stephanie.cherubin@students.makeschool.com',
+  name: 'Emily',
+  age: '83',
+};
+
+nodemailerMailgun.sendMail({
+  from: 'no-reply@example.com',
+  to: user.email, // An array if you have multiple recipients.
+  subject: 'Hey you, awesome!',
+  template: {
+    name: 'email.handlebars',
+    engine: 'handlebars',
+    context: user,
+  },
+}).then((info) => {
+  console.log(`Response: ${info}`);
+}).catch((err) => {
+  console.log(`Error!: ${err}`);
+});
 
 require('./routes/index.js')(app);
 require('./routes/pets.js')(app);
@@ -52,7 +86,5 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500);
   res.render('error');
 });
-
-app.locals.PUBLIC_STRIPE_API_KEY = process.env.PUBLIC_STRIPE_API_KEY;
 
 module.exports = app;
